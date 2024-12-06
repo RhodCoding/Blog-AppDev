@@ -1,20 +1,17 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { BehaviorSubject, Observable, throwError } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
 import { User } from '../models/user.model';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
+  private apiUrl = `${environment.apiUrl}/api/auth`;
   private currentUserSubject: BehaviorSubject<User | null>;
   public currentUser: Observable<User | null>;
-
-  // Mock user for testing
-  private mockUser = {
-    email: 'test@example.com',
-    password: 'password123'
-  };
 
   constructor(private http: HttpClient) {
     this.currentUserSubject = new BehaviorSubject<User | null>(
@@ -28,31 +25,30 @@ export class AuthService {
   }
 
   register(username: string, email: string, password: string): Observable<User> {
-    // Mock registration
-    const newUser: User = {
-      id: '1',
+    return this.http.post<User>(`${this.apiUrl}/register`, {
       username,
       email,
-      role: 'user'
-    };
-    return of(newUser);
+      password
+    }).pipe(
+      tap(user => {
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        this.currentUserSubject.next(user);
+      }),
+      catchError(this.handleError)
+    );
   }
 
   login(email: string, password: string): Observable<User> {
-    // Mock authentication
-    if (email === this.mockUser.email && password === this.mockUser.password) {
-      const user: User = {
-        id: '1',
-        username: 'Test User',
-        email: email,
-        role: 'user',
-        token: 'mock-jwt-token'
-      };
-      localStorage.setItem('currentUser', JSON.stringify(user));
-      this.currentUserSubject.next(user);
-      return of(user);
-    }
-    return throwError(() => new Error('Invalid email or password'));
+    return this.http.post<User>(`${this.apiUrl}/login`, {
+      email,
+      password
+    }).pipe(
+      tap(user => {
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        this.currentUserSubject.next(user);
+      }),
+      catchError(this.handleError)
+    );
   }
 
   logout(): void {
@@ -62,5 +58,18 @@ export class AuthService {
 
   isAuthenticated(): boolean {
     return !!this.currentUserValue;
+  }
+
+  private handleError(error: HttpErrorResponse) {
+    let errorMessage = 'An error occurred';
+    if (error.error instanceof ErrorEvent) {
+      // Client-side error
+      errorMessage = error.error.message;
+    } else {
+      // Server-side error
+      errorMessage = `Error Code: ${error.status}\nMessage: ${error.message}`;
+    }
+    console.error(errorMessage);
+    return throwError(() => new Error(errorMessage));
   }
 }
