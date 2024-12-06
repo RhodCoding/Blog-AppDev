@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { BlogService } from '../../../services/blog.service';
+import { AuthService } from '../../../services/auth.service';
 import { BlogPost } from '../../../models/blog-post.model';
 
 @Component({
@@ -13,17 +15,24 @@ import { BlogPost } from '../../../models/blog-post.model';
     CommonModule,
     RouterLink,
     MatCardModule,
-    MatButtonModule
+    MatButtonModule,
+    MatIconModule
   ],
   template: `
     <div class="blog-list-container">
-      <h1>Blog Posts</h1>
+      <div class="header">
+        <h1>Blog Posts</h1>
+        <button mat-raised-button color="primary" routerLink="/blog/create" *ngIf="authService.currentUserValue">
+          <mat-icon>add</mat-icon>
+          Create New Post
+        </button>
+      </div>
       
       <div class="blog-grid">
         <mat-card *ngFor="let post of blogPosts" class="blog-card">
           <mat-card-header>
             <mat-card-title>{{ post.title }}</mat-card-title>
-            <mat-card-subtitle>By {{ post.authorName }}</mat-card-subtitle>
+            <mat-card-subtitle>By {{ post.authorName }} | {{ post.createdAt | date }}</mat-card-subtitle>
           </mat-card-header>
           
           <mat-card-content>
@@ -32,11 +41,13 @@ import { BlogPost } from '../../../models/blog-post.model';
           
           <mat-card-actions>
             <button mat-button [routerLink]="['/blog', post.id]">READ MORE</button>
+            <button mat-icon-button color="warn" *ngIf="canEdit(post)" (click)="deletePost(post.id)">
+              <mat-icon>delete</mat-icon>
+            </button>
+            <button mat-icon-button color="primary" *ngIf="canEdit(post)" [routerLink]="['/blog/edit', post.id]">
+              <mat-icon>edit</mat-icon>
+            </button>
           </mat-card-actions>
-          
-          <mat-card-footer>
-            <small>{{ post.createdAt | date }}</small>
-          </mat-card-footer>
         </mat-card>
       </div>
     </div>
@@ -47,11 +58,16 @@ import { BlogPost } from '../../../models/blog-post.model';
       max-width: 1200px;
       margin: 0 auto;
     }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
     .blog-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 20px;
-      margin-top: 20px;
     }
     .blog-card {
       height: 100%;
@@ -61,16 +77,20 @@ import { BlogPost } from '../../../models/blog-post.model';
     mat-card-content {
       flex-grow: 1;
     }
-    mat-card-footer {
-      padding: 8px 16px;
-      color: #666;
+    mat-card-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
   `]
 })
 export class BlogListComponent implements OnInit {
   blogPosts: BlogPost[] = [];
 
-  constructor(private blogService: BlogService) {}
+  constructor(
+    private blogService: BlogService,
+    public authService: AuthService
+  ) {}
 
   ngOnInit(): void {
     this.loadBlogPosts();
@@ -85,5 +105,23 @@ export class BlogListComponent implements OnInit {
         console.error('Error loading blog posts:', error);
       }
     });
+  }
+
+  canEdit(post: BlogPost): boolean {
+    const currentUser = this.authService.currentUserValue;
+    return currentUser?.id === post.authorId;
+  }
+
+  deletePost(id: string): void {
+    if (confirm('Are you sure you want to delete this post?')) {
+      this.blogService.deletePost(id).subscribe({
+        next: () => {
+          this.blogPosts = this.blogPosts.filter(post => post.id !== id);
+        },
+        error: (error) => {
+          console.error('Error deleting post:', error);
+        }
+      });
+    }
   }
 }
