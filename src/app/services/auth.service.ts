@@ -9,7 +9,7 @@ import { environment } from '../../environments/environment';
   providedIn: 'root'
 })
 export class AuthService {
-  private apiUrl = `${environment.apiUrl}/api/auth`;
+  private apiUrl = 'http://localhost/blog-api/auth.php';
   private currentUserSubject: BehaviorSubject<User | null>;
   public currentUser: Observable<User | null>;
 
@@ -24,34 +24,41 @@ export class AuthService {
     return this.currentUserSubject.value;
   }
 
-  register(username: string, email: string, password: string): Observable<User> {
-    return this.http.post<User>(`${this.apiUrl}/register`, {
+  register(username: string, email: string, password: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}?action=register`, {
       username,
       email,
       password
     }).pipe(
-      tap(user => {
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        this.currentUserSubject.next(user);
+      tap(response => {
+        if (response.success) {
+          // Store user details and token in local storage
+          localStorage.setItem('currentUser', JSON.stringify(response.data));
+          this.currentUserSubject.next(response.data);
+        }
       }),
       catchError(this.handleError)
     );
   }
 
-  login(email: string, password: string): Observable<User> {
-    return this.http.post<User>(`${this.apiUrl}/login`, {
+  login(email: string, password: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}?action=login`, {
       email,
       password
     }).pipe(
-      tap(user => {
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        this.currentUserSubject.next(user);
+      tap(response => {
+        if (response.success) {
+          // Store user details and token in local storage
+          localStorage.setItem('currentUser', JSON.stringify(response.data));
+          this.currentUserSubject.next(response.data);
+        }
       }),
       catchError(this.handleError)
     );
   }
 
-  logout(): void {
+  logout() {
+    // Remove user from local storage
     localStorage.removeItem('currentUser');
     this.currentUserSubject.next(null);
   }
@@ -67,9 +74,9 @@ export class AuthService {
       errorMessage = error.error.message;
     } else {
       // Server-side error
-      errorMessage = `Error Code: ${error.status}\nMessage: ${error.message}`;
+      errorMessage = error.error.message || 'Server error';
     }
     console.error(errorMessage);
-    return throwError(() => new Error(errorMessage));
+    return throwError(() => errorMessage);
   }
 }
